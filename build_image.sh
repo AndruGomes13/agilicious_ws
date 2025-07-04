@@ -6,7 +6,12 @@ is_jetson() {
   return 1
 }
 
-if is_jetson; then
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  # macOS (Apple Silicon)
+  BASE_IMAGE="ubuntu:20.04"
+  IMAGE_NAME="ros_agilicious_mac:latest"
+  echo "Building Image for macOS ARM64 with Ubuntu base image: $BASE_IMAGE"
+elif is_jetson; then
   BASE_IMAGE="nvcr.io/nvidia/l4t-base:r35.1.0"
   IMAGE_NAME="ros_agilicious_jetson:latest"
   echo "Building Image with JetPack base image: $BASE_IMAGE"

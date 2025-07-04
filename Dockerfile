@@ -36,7 +36,7 @@ ENV NVIDIA_DRIVER_CAPABILITIES=${NVIDIA_DRIVER_CAPABILITIES:+${NVIDIA_DRIVER_CAP
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       build-essential software-properties-common \
-      curl gnupg2 lsb-release sudo\
+      curl gnupg2 lsb-release sudo x11-apps xauth libgl1-mesa-glx libgl1-mesa-dri libglx-mesa0 mesa-utils \
       gcc-9 g++-9 clang-10 \
       python3-pip python-is-python3 git nano wget htop \
       libyaml-cpp-dev libeigen3-dev libgoogle-glog-dev \
@@ -46,6 +46,16 @@ RUN apt-get update && \
       linux-tools-generic dbus xdg-utils && \
     update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 60 \
                         --slave /usr/bin/g++ g++ /usr/bin/g++-9 && \
+    rm -rf /var/lib/apt/lists/*
+
+# ─── VNC / X11 desktop support ─────────────────────
+RUN apt-get update  && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    xvfb fluxbox tigervnc-standalone-server tigervnc-common \
+    openbox xvfb x11vnc openbox xfonts-base\ 
+    websockify novnc \ 
+    libgl1-mesa-dri libglx-mesa0 mesa-utils \  
+    x11-utils x11-xserver-utils && \     
     rm -rf /var/lib/apt/lists/*
 
 # switch default compiler to clang-10
@@ -67,6 +77,14 @@ RUN groupadd --gid ${GID} ${USERNAME} && \
 RUN groupadd -f -g ${VIDEO_GID} video && \
     usermod  -aG video ${USERNAME}
 
+# clone + install your ZSH setup
+RUN git clone https://github.com/AndruGomes13/zsh-quick-boot.git ~/zsh-quick-boot && \
+    ~/zsh-quick-boot/install.sh
+
+COPY start-vnc.sh /home/agilicious/start-vnc.sh
+RUN chown agilicious:agilicious /home/agilicious/start-vnc.sh && \
+    chmod +x /home/agilicious/start-vnc.sh
+
 USER ${USERNAME}
 WORKDIR ${HOME}
 
@@ -80,6 +98,5 @@ RUN /bin/bash -lc "\
                     --merge-devel \
                     --cmake-args -DCMAKE_BUILD_TYPE=Release"
 
-# optional: clone + install your ZSH setup
-RUN git clone https://github.com/AndruGomes13/zsh-quick-boot.git ~/zsh-quick-boot && \
-    ~/zsh-quick-boot/install.sh
+
+ENTRYPOINT ["/home/agilicious/start-vnc.sh"]
