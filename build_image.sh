@@ -7,7 +7,7 @@ is_jetson() {
 }
 
 if is_jetson; then
-  BASE_IMAGE="nvcr.io/nvidia/l4t-base:r35.4.1"
+  BASE_IMAGE="nvcr.io/nvidia/l4t-base:r35.1.0"
   IMAGE_NAME="ros_agilicious_jetson:latest"
   echo "Building Image with JetPack base image: $BASE_IMAGE"
 else

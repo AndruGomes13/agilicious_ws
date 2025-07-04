@@ -28,7 +28,7 @@ NVIDIA_DOCKER_REQUIREMENT='nvidia-container-toolkit'
 GPU_OPTIONS=""
 if dpkg --get-selections | grep -q "^$NVIDIA_DOCKER_REQUIREMENT[[:space:]]*install$" >/dev/null; then
   echo "Starting docker with NVidia support!"
-  GPU_OPTIONS=" --runtime=nvidia"
+  GPU_OPTIONS=" --gpus all --runtime=nvidia"
 fi
 
 # # Check if using tmux conf
@@ -47,7 +47,7 @@ else
   echo "Using CUDA base image for x86_64: $IMAGE_NAME"
 fi
 
-docker run --privileged --rm -it \
+sudo docker run --privileged --rm -it \
            --volume $WORKSPACE_DIR:/home/agilicious/catkin_ws/:rw \
            --volume=$XSOCK:$XSOCK:rw \
            --volume=$XAUTH:$XAUTH:rw \
@@ -55,12 +55,13 @@ docker run --privileged --rm -it \
            --volume=/var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket \
            ${TMUX_CONF} \
            --shm-size=1gb \
-           --env="XAUTHORITY=${XAUTH}:rw" \
+           --env="XAUTHORITY=${XAUTH}" \
            --env="DISPLAY=${DISPLAY}" \
            --env=TERM=xterm-256color \
            --env=QT_X11 \
            --env=QT_X11_NO_MITSHM=1 \
            --env DISABLE_ROS1_EOL_WARNINGS=1 \
+           --env XDG_RUNTIME_DIR=/run/user/1000/ \
            --env HISTFILE=/home/agilicious/catkin_ws/mount/.zsh_history \
            ${GPU_OPTIONS} \
            --net=host --pid host --ipc host\
@@ -71,5 +72,3 @@ docker run --privileged --rm -it \
            -u "agilicious"  \
            $IMAGE_NAME \
            zsh
-
-

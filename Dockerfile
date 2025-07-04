@@ -7,6 +7,7 @@ ARG UBUNTU_CODENAME=focal
 ARG USERNAME=agilicious
 ARG UID=1000
 ARG GID=1000
+ARG VIDEO_GID=44
 
 # ROS Installation
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -35,7 +36,7 @@ ENV NVIDIA_DRIVER_CAPABILITIES=${NVIDIA_DRIVER_CAPABILITIES:+${NVIDIA_DRIVER_CAP
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       build-essential software-properties-common \
-      curl gnupg2 lsb-release \
+      curl gnupg2 lsb-release sudo\
       gcc-9 g++-9 clang-10 \
       python3-pip python-is-python3 git nano wget htop \
       libyaml-cpp-dev libeigen3-dev libgoogle-glog-dev \
@@ -62,6 +63,9 @@ RUN groupadd --gid ${GID} ${USERNAME} && \
       > /etc/sudoers.d/${USERNAME} && \
     chmod 0440 /etc/sudoers.d/${USERNAME} && \
     usermod -aG dialout,tty ${USERNAME}
+
+RUN groupadd -f -g ${VIDEO_GID} video && \
+    usermod  -aG video ${USERNAME}
 
 USER ${USERNAME}
 WORKDIR ${HOME}
