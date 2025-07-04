@@ -1,0 +1,15 @@
+[submodule "src/catkin_simple"]
+	path = src/catkin_simple
+	url = https://github.com/catkin/catkin_simple.git
+[submodule "src/mav_comm"]
+	path = src/mav_comm
+	url = https://github.com/ethz-asl/mav_comm.git
+[submodule "src/eigen_catkin"]
+	path = src/eigen_catkin
+	url = https://github.com/ethz-asl/eigen_catkin.git
+[submodule "src/rotors_simulator"]
+	path = src/rotors_simulator
+	url = https://github.com/ethz-asl/rotors_simulator.git
+[submodule "src/rpg/agilicious_internal"]
+	path = src/rpg/agilicious_internal
+	url = https://github.com/uzh-rpg/agilicious_internal.git
