@@ -1,0 +1,12 @@
+{
+    "ros.distro": "noetic",
+    "clangd.path": "clangd-18",
+    "clangd.arguments": ["--compile-commands-dir=${workspaceFolder}/build"],
+    "C_Cpp.intelliSenseEngine": "disabled",
+
+    "python.pythonPath": "/usr/bin/python3",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/devel/lib/python3/dist-packages"
+    ]
+
+}
