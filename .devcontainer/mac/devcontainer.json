@@ -41,7 +41,7 @@
   "workspaceFolder": "/home/agilicious/catkin_ws",
 
   "settings": { "terminal.integrated.defaultProfile.linux": "zsh" },
-  "postStartCommand": "zsh",
+  "postStartCommand": "~/start-vnc.sh zsh",
 
   "customizations": {
     "vscode": {

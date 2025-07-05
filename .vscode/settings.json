@@ -4,9 +4,9 @@
     "clangd.arguments": ["--compile-commands-dir=${workspaceFolder}/build"],
     "C_Cpp.intelliSenseEngine": "disabled",
 
-    "python.pythonPath": "/usr/bin/python3",
-    "python.analysis.extraPaths": [
-        "${workspaceFolder}/devel/lib/python3/dist-packages"
-    ]
+    "python.envFile": "${workspaceFolder}/.env",
+    // "python.analysis.extraPaths": [
+    //     "${workspaceFolder}/devel/lib/python3/dist-packages"
+    // ]
 
 }
