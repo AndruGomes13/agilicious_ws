@@ -20,9 +20,19 @@ if is_mac; then
   export DISPLAY=${DISPLAY_VNC} # Set default DISPLAY with VNC
   ENV_DISPLAY="--env=DISPLAY_X11=${DISPLAY_X11} --env=DISPLAY_VNC=${DISPLAY_VNC} --env=DISPLAY=${DISPLAY}"
 
+  # SSH agent forwarding
+  SSH_OPTS="--volume /run/host-services/ssh-auth.sock:/ssh-agent \
+  --env SSH_AUTH_SOCK=/ssh-agent"
+
 else
   # keep the normal Linux display
   export DISPLAY=${DISPLAY:-:0}
+
+  # SSH agent forwarding
+  SSH_OPTS="--volume ${env:SSH_AUTH_SOCK}:/ssh-agent \
+  --env SSH_AUTH_SOCK=/ssh-agent"
+
+
 fi
 
 if is_mac; then

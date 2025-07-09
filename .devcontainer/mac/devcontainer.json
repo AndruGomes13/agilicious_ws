@@ -33,12 +33,17 @@
     "DISABLE_ROS1_EOL_WARNINGS": "1",
     "XDG_RUNTIME_DIR": "/run/user/1000/",
     "TERM": "xterm-256color",
-    "HISTFILE": "/home/agilicious/catkin_ws/mount/.zsh_history"
+    "HISTFILE": "/home/agilicious/catkin_ws/mount/.zsh_history",
+    "SSH_AUTH_SOCK": "/ssh-agent"
   },
 
   /* Workspace mapping mirrors the volume in your script */
   "workspaceMount": "source=${localWorkspaceFolder},target=/home/agilicious/catkin_ws,type=bind",
   "workspaceFolder": "/home/agilicious/catkin_ws",
+  "mounts": [
+  "source=/run/host-services/ssh-auth.sock,target=/ssh-agent,type=bind",
+  ],
+  
 
   "settings": { "terminal.integrated.defaultProfile.linux": "zsh" },
   "postStartCommand": "~/start-vnc.sh zsh",

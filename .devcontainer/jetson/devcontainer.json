@@ -1,11 +1,11 @@
 {
-  "name": "ros_agilicious-cuda",
+  "name": "ros_agilicious_jetson:latest",
   "remoteUser": "agilicious",
 
   "build": {
     "context": "${workspaceFolder}",
     "dockerfile": "${localWorkspaceFolder}/Dockerfile",
-    "args": { "BASE_IMAGE": "nvidia/cuda:12.2.0-base-ubuntu20.04" }
+    "args": { "BASE_IMAGE": "nvcr.io/nvidia/l4t-base:r35.1.0" }
   },
   "initializeCommand": "${localWorkspaceFolder}/.devcontainer/scripts/host-setup-xauth.sh",
   "runArgs": [
@@ -51,10 +51,10 @@
 
   "workspaceMount": "source=${localWorkspaceFolder},target=/home/agilicious/catkin_ws,type=bind",
   "workspaceFolder": "/home/agilicious/catkin_ws",
-
   "mounts": [
   "source=${env:SSH_AUTH_SOCK},target=/ssh-agent,type=bind"
 ],
+
 
   "settings": { "terminal.integrated.defaultProfile.linux": "zsh" },
   "postStartCommand": "~/start-vnc.sh zsh",

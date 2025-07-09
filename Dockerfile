@@ -58,12 +58,25 @@ RUN apt-get update  && \
     x11-utils x11-xserver-utils && \     
     rm -rf /var/lib/apt/lists/*
 
+# --- Setup Python 3.11 Environment for inference ---
+RUN add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update && apt-get install -y \
+    python3.11 \
+    python3.11-venv \
+    python3.11-distutils \
+    && apt-get clean
+
+RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
+
+RUN python3.11 -m pip install jax[cpu] brax
+
+
 # switch default compiler to clang-10
 ENV CC=/usr/bin/clang-10
 ENV CXX=/usr/bin/clang++-10
 
 # ROS python packages & catkin tools
-RUN pip install --no-cache-dir catkin-tools scipy
+RUN pip install --no-cache-dir catkin-tools scipy "jax[cpu]" typing_extensions
 
 # create non-root user
 RUN groupadd --gid ${GID} ${USERNAME} && \
