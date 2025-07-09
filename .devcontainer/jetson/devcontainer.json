@@ -1,9 +1,9 @@
 {
-  "name": "ros_agilicious_jetson:latest",
+  "name": "ros_agilicious-jetson",
   "remoteUser": "agilicious",
 
   "build": {
-    "context": "${workspaceFolder}",
+    "context": "${localWorkspaceFolder}",
     "dockerfile": "${localWorkspaceFolder}/Dockerfile",
     "args": { "BASE_IMAGE": "nvcr.io/nvidia/l4t-base:r35.1.0" }
   },
@@ -29,7 +29,6 @@
     "--mount", "type=bind,source=/var/run/dbus/system_bus_socket,target=/var/run/dbus/system_bus_socket",
 
     /* ports + perf */
-    "-p", "5900:5900", "-p", "5901:5901",
     "--cpuset-cpus", "2-5",
     "--shm-size=1gb",
     "--ulimit", "rtprio=99",
@@ -43,7 +42,7 @@
 
     "QT_X11_NO_MITSHM": "1",
     "DISABLE_ROS1_EOL_WARNINGS": "1",
-    "XDG_RUNTIME_DIR": "/run/user/1000/",
+    "XDG_RUNTIME_DIR": "/run/user/${localEnv:UID}/",
     "TERM": "xterm-256color",
     "HISTFILE": "/home/agilicious/catkin_ws/mount/.zsh_history",
     "SSH_AUTH_SOCK": "/ssh-agent"

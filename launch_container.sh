@@ -29,17 +29,14 @@ else
   export DISPLAY=${DISPLAY:-:0}
 
   # SSH agent forwarding
-  SSH_OPTS="--volume ${env:SSH_AUTH_SOCK}:/ssh-agent \
+  SSH_OPTS="--volume $SSH_AUTH_SOCK:/ssh-agent \
   --env SSH_AUTH_SOCK=/ssh-agent"
-
-
 fi
 
 if is_mac; then
   echo "Launching macOS + XQuartz mode"
   DISPLAY=${DISPLAY:-host.docker.internal:0}
   GPU_OPTIONS=""                # no NVIDIA on Mac
-  NET_OPTS="-p 11311:11311"     # expose ROS master
   HOSTNAME_OPTS=""              # drop --net=host / pid / ipc
   CAP_OPTS=""                   # drop special caps
   IMAGE_NAME="ros_agilicious_mac:latest"
@@ -47,19 +44,28 @@ elif is_jetson; then
   echo "Launching Jetson mode"
   DISPLAY=${DISPLAY:-:0}
   GPU_OPTIONS="--gpus all --runtime=nvidia"
-  NET_OPTS="--net=host --pid host --ipc host"
   CAP_OPTS="--cap-add SYS_NICE --cap-add SYS_ADMIN --cap-add IPC_LOCK"
   IMAGE_NAME="ros_agilicious_jetson:latest"
 else
   echo "Launching x86_64 + NVIDIA mode"
   DISPLAY=${DISPLAY:-:0}
   GPU_OPTIONS="--gpus all --runtime=nvidia"
-  NET_OPTS="--net=host --pid host --ipc host"
   CAP_OPTS="--cap-add SYS_NICE --cap-add SYS_ADMIN --cap-add IPC_LOCK"
   IMAGE_NAME="ros_agilicious_cuda:latest"
 fi
 
+# Network options
+if is_mac; then
+  NET_OPTS="-p 11311:11311 \
+            -p 5901:5901 \
+            -p 5900:5900"     # expose ROS master
+else
+  NET_OPTS="--net=host --pid host --ipc host" # use host networking
+fi
 
+
+
+# Display related options
 if [ ! is_mac ]; then 
   XAUTH=/tmp/.docker.xauth-${UID}
   XSOCK=/tmp/.X11-unix
@@ -90,6 +96,7 @@ sudo docker run --privileged --rm -it \
   --volume "$WORKSPACE_DIR":/home/agilicious/catkin_ws:rw \
   ${MOUNT_XSOCK} \
   ${MOUNT_XAUTH} \
+  ${SSH_OPTS} \
   --volume /dev:/dev:rw \
   --volume /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket \
   ${NET_OPTS} \
@@ -102,8 +109,6 @@ sudo docker run --privileged --rm -it \
   --env="XDG_RUNTIME_DIR=/run/user/1000/" \
   --env="TERM=xterm-256color" \
   --env="HISTFILE=/home/agilicious/catkin_ws/mount/.zsh_history" \
-  -p 5901:5901 \
-  -p 5900:5900 \
   ${GPU_OPTIONS} \
   --ulimit rtprio=99 --ulimit rttime=-1 --ulimit memlock=-1 \
   --cpuset-cpus 2-5 \

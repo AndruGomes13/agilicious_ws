@@ -5,8 +5,17 @@
     "C_Cpp.intelliSenseEngine": "disabled",
 
     "python.envFile": "${workspaceFolder}/.env",
-    // "python.analysis.extraPaths": [
-    //     "${workspaceFolder}/devel/lib/python3/dist-packages"
-    // ]
+
+  "terminal.integrated.profiles.linux": {
+    "zsh": { "path": "/usr/bin/zsh", "args": ["-l"] },
+    "bash-auto": { "path": "/usr/bin/bash", "args": ["-l"] }
+  },
+
+  // what you see when you hit Ctrl+`
+  "terminal.integrated.defaultProfile.linux": "zsh",
+
+  // what VS Code uses for Tasks, debug, dev-container scripts, etc.
+  "terminal.integrated.automationProfile.linux": "bash-auto"
+
 
 }

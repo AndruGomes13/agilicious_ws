@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Skip VNC server startup if DISPLAY_VNC is not set
-if [[ -z "${DISPLAY_VNC}" ]]; then
+if [[ -z "${DISPLAY_VNC:-}" ]]; then
     echo "No VNC display set, skipping VNC server startup"
     exec "$@"
 fi

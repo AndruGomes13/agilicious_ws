@@ -68,15 +68,15 @@ RUN add-apt-repository ppa:deadsnakes/ppa \
 
 RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
 
-RUN python3.11 -m pip install jax[cpu] brax
-
+RUN python3.11 -m pip install --upgrade pip setuptools wheel
+RUN python3.11 -m pip install --upgrade --ignore-installed PyYAML "jax[cpu]" brax
 
 # switch default compiler to clang-10
 ENV CC=/usr/bin/clang-10
 ENV CXX=/usr/bin/clang++-10
 
 # ROS python packages & catkin tools
-RUN pip install --no-cache-dir catkin-tools scipy "jax[cpu]" typing_extensions
+RUN pip install --no-cache-dir catkin-tools scipy typing_extensions
 
 # create non-root user
 RUN groupadd --gid ${GID} ${USERNAME} && \
@@ -85,7 +85,8 @@ RUN groupadd --gid ${GID} ${USERNAME} && \
     echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" \
       > /etc/sudoers.d/${USERNAME} && \
     chmod 0440 /etc/sudoers.d/${USERNAME} && \
-    usermod -aG dialout,tty ${USERNAME}
+    usermod -aG dialout,tty ${USERNAME} && \
+    chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}
 
 RUN groupadd -f -g ${VIDEO_GID} video && \
     usermod  -aG video ${USERNAME}
