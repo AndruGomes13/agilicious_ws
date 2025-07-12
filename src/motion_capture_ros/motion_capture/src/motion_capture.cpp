@@ -1,4 +1,6 @@
 #include "geometry_msgs/PoseStamped.h"
+// #include "agiros_msgs/PointCloud.h"
+// #include "agilib/PointCloud.h"
 #include "ros/time.h"
 #include "tf/transform_datatypes.h"
 #include <ros/ros.h>
@@ -12,8 +14,8 @@ class MotionCaptureNode
 {
     public:
         MotionCaptureNode(ros::NodeHandle &nh, ros::NodeHandle &private_nh):
-            nh(nh),
-            private_nh(private_nh),
+            nh_(nh),
+            pnh_(private_nh),
             tf_broadcaster()
         {
             ROS_INFO("Motion Capture Node initialized.");
@@ -25,10 +27,10 @@ class MotionCaptureNode
             private_nh.getParam("hostname", motionCaptureHostname);
             motionCaptureCfg["hostname"] = motionCaptureHostname;
 
-            mocap = std::unique_ptr<libmotioncapture::MotionCapture>(
+            mocap_ = std::unique_ptr<libmotioncapture::MotionCapture>(
                libmotioncapture::MotionCapture::connect(motionCaptureType,
                                                         motionCaptureCfg));
-            if (!mocap)
+            if (!mocap_)
             {
                 ROS_ERROR("Failed to connect to motion capture system of type: %s", motionCaptureType.c_str());
                 ros::shutdown();
@@ -39,8 +41,8 @@ class MotionCaptureNode
             }
 
             // Create publishers
-            droneMotionCapturePub = nh.advertise<geometry_msgs::PoseStamped>("mocap/" +quadName+"/pose", 1);
-            ballMotionCapturePub = nh.advertise<geometry_msgs::PoseStamped>("mocap/ball/pose", 1);
+            bodyMotionCapturePub = nh.advertise<geometry_msgs::PoseStamped>("mocap/" +quadName+"/pose", 1);
+            pointCloudMotionCapturePub = nh.advertise<geometry_msgs::PoseStamped>("mocap/ball/pose", 1);
 
         }
 
@@ -49,13 +51,13 @@ class MotionCaptureNode
             ROS_INFO("Motion Capture Node shutting down.");
         }
 
-        void run()
+        void tick()
         {
-            mocap->waitForNextFrame();
+            mocap_->waitForNextFrame();
             auto time = ros::Time::now();
             
             bool hasDrone = false;
-            for (const auto &iter : mocap->rigidBodies()){
+            for (const auto &iter : mocap_->rigidBodies()){
                 auto rigidBody = iter.second;
                 if (rigidBody.name() != quadName){
                     continue; // Skip if not the quadrotor
@@ -83,7 +85,7 @@ class MotionCaptureNode
                 dronePoseMsg.pose.orientation.y = drone_transform.getRotation().y();
                 dronePoseMsg.pose.orientation.z = drone_transform.getRotation().z();
 
-                droneMotionCapturePub.publish(dronePoseMsg);
+                bodyMotionCapturePub.publish(dronePoseMsg);
                 tf_broadcaster.sendTransform(stampedTransform);
                 hasDrone = true;
                 break; // Assuming only one quadrotor is tracked
@@ -95,8 +97,10 @@ class MotionCaptureNode
                 return;
             }
 
-            auto pointcloud = mocap->pointCloud();
+            auto pointcloud = mocap_->pointCloud();
             int num_points = pointcloud.rows();
+
+
             if (num_points == 0) {
                 ROS_WARN("No unlabeled markers detected.");
                 return;
@@ -121,23 +125,23 @@ class MotionCaptureNode
             ballPoseMsg.pose.orientation.y = ballTransform.getRotation().y();
             ballPoseMsg.pose.orientation.z = ballTransform.getRotation().z();
 
-            ballMotionCapturePub.publish(ballPoseMsg);
+            pointCloudMotionCapturePub.publish(ballPoseMsg);
             tf_broadcaster.sendTransform(ballStampedTransform);
         }
 
     private:
-        ros::NodeHandle& nh;
-        ros::NodeHandle& private_nh;
+        ros::NodeHandle& nh_;
+        ros::NodeHandle& pnh_;
 
         std::map<std::string, std::string> motionCaptureCfg;
         std::string motionCaptureHostname;
         std::string motionCaptureType;
 
-        ros::Publisher droneMotionCapturePub;
-        ros::Publisher ballMotionCapturePub;
+        ros::Publisher bodyMotionCapturePub;
+        ros::Publisher pointCloudMotionCapturePub;
         tf::TransformBroadcaster tf_broadcaster;
 
-        std::unique_ptr<libmotioncapture::MotionCapture> mocap;
+        std::unique_ptr<libmotioncapture::MotionCapture> mocap_;
 
         std::string quadName;
 };
@@ -154,7 +158,7 @@ int main(int argc, char **argv)
     MotionCaptureNode motionCaptureNode(nh, private_nh);
     while (ros::ok())
     {
-        motionCaptureNode.run();
+        motionCaptureNode.tick();
         ros::spinOnce();
     
     }
