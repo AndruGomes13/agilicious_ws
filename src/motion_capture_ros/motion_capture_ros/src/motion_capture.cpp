@@ -92,6 +92,8 @@ class MotionCaptureNode
             int num_points = point_cloud.rows();
             motion_capture_ros_msgs::PointCloud point_cloud_msg;
 
+            point_cloud_msg.t = time.toSec();
+
             for (int i = 0; i < num_points; ++i) {
 
                 geometry_msgs::PoseStamped pointPoseMsg;

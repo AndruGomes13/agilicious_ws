@@ -1,12 +1,13 @@
 cmake_minimum_required(VERSION 3.5)
-project(motion_capture_ros)
+cmake_policy(SET CMP0048 NEW)
+project(motion_capture_ros VERSION 0.0.1 LANGUAGES CXX)
 
+# Require C++17
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 
-# Libmotioncapture options
+# Configure Libmotioncapture
 set(LIBMOTIONCAPTURE_ENABLE_VICON ON CACHE BOOL "" FORCE)
-
 set(LIBMOTIONCAPTURE_ENABLE_QUALISYS OFF CACHE BOOL "" FORCE)
 set(LIBMOTIONCAPTURE_ENABLE_OPTITRACK OFF CACHE BOOL "" FORCE)
 set(LIBMOTIONCAPTURE_ENABLE_OPTITRACK_CLOSED_SOURCE OFF CACHE BOOL "" FORCE)
@@ -17,29 +18,34 @@ set(LIBMOTIONCAPTURE_ENABLE_MOTIONANALYSIS OFF CACHE BOOL "" FORCE)
 set(LIBMOTIONCAPTURE_BUILD_PYTHON_BINDINGS OFF CACHE BOOL "" FORCE)
 set(LIBMOTIONCAPTURE_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
 
+# Add the external libmotioncapture
+add_subdirectory(
+  ${CMAKE_CURRENT_SOURCE_DIR}/../external/libmotioncapture
+  ${CMAKE_BINARY_DIR}/external/libmotioncapture
+)
 
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../external/libmotioncapture
-            ${CMAKE_BINARY_DIR}/external/libmotioncapture)
+# Import catkin_simple for ROS dependencies
+find_package(catkin_simple REQUIRED)
+catkin_simple(ALL_DEPS_REQUIRED)
 
-
-find_package(catkin REQUIRED COMPONENTS roscpp tf motion_capture_ros_msgs)
-# find_package(catkin REQUIRED COMPONENTS geometry_msgs roscpp tf)
+# Find Eigen3 (system dependency)
 find_package(Eigen3 REQUIRED)
 
-catkin_package(
-  LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS roscpp tf
-  DEPENDS Eigen3
-)
-
-add_executable(motion_capture_node src/motion_capture.cpp)
+# Declare executable
+cs_add_executable(motion_capture_node src/motion_capture.cpp)
 
 target_include_directories(motion_capture_node PRIVATE
-  ${catkin_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}/../external/libmotioncapture/include
   ${CMAKE_CURRENT_SOURCE_DIR}/../external/libmotioncapture/deps/vicon-datastream-sdk/Vicon/CrossMarket/DataStream
-  ${EIGEN3_INCLUDE_DIRS}
 )
 
-target_link_libraries(motion_capture_node ${catkin_LIBRARIES} libmotioncapture)
+target_link_libraries(motion_capture_node
+  libmotioncapture
+)
 
+# Export Eigen3 dependency to downstream packages
+cs_export(DEPENDENCIES Eigen3)
+
+# Install targets and headers
+cs_install()
