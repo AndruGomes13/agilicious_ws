@@ -38,7 +38,7 @@ RUN apt-get update && \
       build-essential software-properties-common \
       curl gnupg2 lsb-release sudo x11-apps xauth libgl1-mesa-glx libgl1-mesa-dri libglx-mesa0 mesa-utils \
       gcc-9 g++-9 clang-10 \
-      python3-pip python-is-python3 git nano wget htop \
+      python-is-python3 git nano wget htop \
       libyaml-cpp-dev libeigen3-dev libgoogle-glog-dev \
       ccache tmux net-tools iputils-ping usbutils screen \
       automake bison flex gperf libncurses5-dev libtool \
@@ -58,6 +58,11 @@ RUN apt-get update  && \
     x11-utils x11-xserver-utils && \     
     rm -rf /var/lib/apt/lists/*
 
+#--- Setup Python 3.8 ---
+RUN apt-get update && apt-get install -y python3.8-venv python3.8-distutils
+RUN curl -sS https://bootstrap.pypa.io/pip/3.8/get-pip.py | python3.8
+RUN python3.8 -m pip install --no-cache-dir catkin-tools scipy typing_extensions
+
 # --- Setup Python 3.11 Environment for inference ---
 RUN add-apt-repository ppa:deadsnakes/ppa \
     && apt-get update && apt-get install -y \
@@ -74,9 +79,6 @@ RUN python3.11 -m pip install --upgrade --ignore-installed PyYAML "jax[cpu]" bra
 # switch default compiler to clang-10
 ENV CC=/usr/bin/clang-10
 ENV CXX=/usr/bin/clang++-10
-
-# ROS python packages & catkin tools
-RUN pip install --no-cache-dir catkin-tools scipy typing_extensions
 
 # create non-root user
 RUN groupadd --gid ${GID} ${USERNAME} && \
