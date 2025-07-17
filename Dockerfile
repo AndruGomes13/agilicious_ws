@@ -25,7 +25,11 @@ RUN sudo apt-get install -y \
   ros-${ROS_DISTRO}-octomap-msgs \
   ros-${ROS_DISTRO}-octomap-ros \
   ros-${ROS_DISTRO}-xacro \
-  ros-${ROS_DISTRO}-plotjuggler-ros
+  ros-${ROS_DISTRO}-plotjuggler-ros \
+  ros-${ROS_DISTRO}-mavros \
+  ros-${ROS_DISTRO}-mavros-extras
+
+
 # 
 ENV ROS_DISTRO=${ROS_DISTRO}
 ENV HOME=/home/${USERNAME}
@@ -43,7 +47,8 @@ RUN apt-get update && \
       ccache tmux net-tools iputils-ping usbutils screen \
       automake bison flex gperf libncurses5-dev libtool \
       libusb-1.0-0-dev pkg-config dfu-util \
-      linux-tools-generic dbus xdg-utils clangd-18 && \
+      linux-tools-generic dbus xdg-utils clangd-18 \
+      geographiclib-tools geographiclib-get-geoids egm96-5 && \
     update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 60 \
                         --slave /usr/bin/g++ g++ /usr/bin/g++-9 && \
     rm -rf /var/lib/apt/lists/*
