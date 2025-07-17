@@ -42,6 +42,7 @@
   "workspaceFolder": "/home/agilicious/catkin_ws",
   "mounts": [
   "source=/run/host-services/ssh-auth.sock,target=/ssh-agent,type=bind",
+  "source=${localWorkspaceFolder}/mount/.tmux.conf,target=/home/agilicious/.tmux.conf,type=bind",
   ],
   
 

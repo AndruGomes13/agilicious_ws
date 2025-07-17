@@ -53,7 +53,8 @@
   "workspaceFolder": "/home/agilicious/catkin_ws",
 
   "mounts": [
-  "source=${env:SSH_AUTH_SOCK},target=/ssh-agent,type=bind"
+  "source=${env:SSH_AUTH_SOCK},target=/ssh-agent,type=bind",
+  "source=${localWorkspaceFolder}/mount/.tmux.conf,target=/home/agilicious/.tmux.conf,type=bind",
 ],
 
   "settings": { "terminal.integrated.defaultProfile.linux": "zsh" },

@@ -8,6 +8,7 @@
     "args": { "BASE_IMAGE": "nvcr.io/nvidia/l4t-base:r35.1.0" }
   },
   "initializeCommand": "${localWorkspaceFolder}/.devcontainer/scripts/host-setup-xauth.sh",
+  "shutdownAction": "none",
   "runArgs": [
     "--privileged",
 
@@ -51,7 +52,8 @@
   "workspaceMount": "source=${localWorkspaceFolder},target=/home/agilicious/catkin_ws,type=bind",
   "workspaceFolder": "/home/agilicious/catkin_ws",
   "mounts": [
-  "source=${env:SSH_AUTH_SOCK},target=/ssh-agent,type=bind"
+  "source=${env:SSH_AUTH_SOCK},target=/ssh-agent,type=bind",
+  "source=${localWorkspaceFolder}/mount/.tmux.conf,target=/home/agilicious/.tmux.conf,type=bind",
 ],
 
 
