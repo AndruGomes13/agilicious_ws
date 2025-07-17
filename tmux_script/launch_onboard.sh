@@ -1,11 +1,11 @@
 #!/bin/bash
 
-SESSION="my-session"
+SESSION="agilicious-onboard"
 
 # Start tmux session, detached
 tmux new-session -d -s $SESSION -n main
 
-# Pane 0 (full window initially)
+# Pane 0
 tmux send-keys -t $SESSION:0.0 'cd ~/catkin_ws' C-m
 
 # Split horizontally: Pane 0 (left), Pane 1 (right)
