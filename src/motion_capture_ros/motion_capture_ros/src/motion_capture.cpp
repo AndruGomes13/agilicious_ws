@@ -61,6 +61,15 @@ class MotionCaptureNode
             mocap_->waitForNextFrame();
             auto time = ros::Time::now();
             
+            // Compensate latency
+            auto latency = mocap_->latency();
+            float total_latency = 0;
+            for (const auto &iter : latency) {
+                total_latency += iter.value();
+            }
+            time -= ros::Duration(total_latency);
+            
+            // Publish body poses
             for (const auto &iter : mocap_->rigidBodies()){
                 publishBodyPose(iter.second, time);
             }
