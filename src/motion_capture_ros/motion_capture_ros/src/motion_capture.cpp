@@ -1,5 +1,6 @@
 #include "geometry_msgs/PoseStamped.h"
 #include "motion_capture_ros_msgs/PointCloud.h"
+#include "ros/console.h"
 #include "ros/time.h"
 #include "std_msgs/String.h"
 #include <ros/ros.h>
