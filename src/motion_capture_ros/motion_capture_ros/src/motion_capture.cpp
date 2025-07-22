@@ -1,6 +1,7 @@
 #include "geometry_msgs/PoseStamped.h"
 #include "motion_capture_ros_msgs/PointCloud.h"
 #include "ros/time.h"
+#include "std_msgs/String.h"
 #include <ros/ros.h>
 #include <libmotioncapture/motioncapture.h>
 #include <string>
@@ -18,9 +19,17 @@ class MotionCaptureNode
             ROS_INFO("Motion Capture Node initialized.");
             
             // Load parameters
+            std::string motionCaptureHostname = "";
             private_nh.getParam("type", motionCaptureType);
             private_nh.getParam("hostname", motionCaptureHostname);
+            private_nh.getParam("interface_ip", motionCaptureInterfaceIP);
+            private_nh.getParam("port_command", motionCapturePortCommand);
+
+            // Populate configuration map
             motionCaptureCfg["hostname"] = motionCaptureHostname;
+            motionCaptureCfg["type"] = motionCaptureType;
+            motionCaptureCfg["interface_ip"] = motionCaptureInterfaceIP;
+            // motionCaptureCfg["port_command"] = std::to_string(motionCapturePortCommand);
 
             mocap_ = std::unique_ptr<libmotioncapture::MotionCapture>(
                libmotioncapture::MotionCapture::connect(motionCaptureType,
@@ -39,6 +48,7 @@ class MotionCaptureNode
             // Create publishers
             pointCloudMotionCapturePub = nh.advertise<motion_capture_ros_msgs::PointCloud>("mocap/unlabeled_point_cloud", 1);
 
+            ROS_INFO("Point cloud publisher created.");
         }
 
         ~MotionCaptureNode()
@@ -70,7 +80,9 @@ class MotionCaptureNode
             time -= ros::Duration(total_latency);
             
             // Publish body poses
+            ROS_INFO("Publishing poses for %zu bodies", mocap_->rigidBodies().size());
             for (const auto &iter : mocap_->rigidBodies()){
+                std::cout << "Publishing pose for body: " << iter.first << std::endl;
                 publishBodyPose(iter.second, time);
             }
 
@@ -99,6 +111,7 @@ class MotionCaptureNode
         void publishPointCloud(const libmotioncapture::PointCloud& point_cloud, const ros::Time& time)
         {
             int num_points = point_cloud.rows();
+            std::cout << "Publishing point cloud with " << num_points << " points." << std::endl;
             motion_capture_ros_msgs::PointCloud point_cloud_msg;
 
             point_cloud_msg.t = time.toSec();
@@ -123,6 +136,8 @@ class MotionCaptureNode
         std::map<std::string, std::string> motionCaptureCfg;
         std::string motionCaptureHostname;
         std::string motionCaptureType;
+        std::string motionCaptureInterfaceIP;
+        int motionCapturePortCommand;
 
         ros::Publisher bodyMotionCapturePub;
         ros::Publisher pointCloudMotionCapturePub;
