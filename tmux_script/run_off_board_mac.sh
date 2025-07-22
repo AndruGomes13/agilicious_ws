@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SESSION="run_onboard"
+SESSION="run_offboard_mac"
 WORKDIR="$HOME/Repos/agilicious_ws_mac"
 ROS_SETUP="source $WORKDIR/devel/setup.sh"
 INIT_SETUP="$ROS_SETUP && cd $WORKDIR  && clear && ros_connect_orin"
