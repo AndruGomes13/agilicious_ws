@@ -15,7 +15,15 @@
   "terminal.integrated.defaultProfile.linux": "zsh",
 
   // what VS Code uses for Tasks, debug, dev-container scripts, etc.
-  "terminal.integrated.automationProfile.linux": "bash-auto"
+  "terminal.integrated.automationProfile.linux": "bash-auto",
+  "python.autoComplete.extraPaths": [
+    "/Users/andru/Repos/agilicious_ws_mac/devel/lib/python3.11/site-packages",
+    "/Users/andru/.local/share/mamba/envs/ros_noetic/lib/python3.11/site-packages"
+  ],
+  "python.analysis.extraPaths": [
+    "/Users/andru/Repos/agilicious_ws_mac/devel/lib/python3.11/site-packages",
+    "/Users/andru/.local/share/mamba/envs/ros_noetic/lib/python3.11/site-packages"
+  ]
 
 
 }
