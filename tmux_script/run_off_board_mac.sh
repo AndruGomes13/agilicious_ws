@@ -15,8 +15,7 @@ tmux split-window -v -t $SESSION:0.1 -c "$WORKDIR"    # Pane 0.3
 
 # Now send commands
 tmux send-keys -t $SESSION:0.0 "$INIT_SETUP" C-m
-tmux send-keys -t $SESSION:0.0 "roslaunch motion_capture_ros base_computer.launch quad_name:=volley_drone rviz:=true
-"
+tmux send-keys -t $SESSION:0.0 "roslaunch motion_capture_ros base_computer.launch quad_name:=volley_drone rviz:=true"
 
 tmux send-keys -t $SESSION:0.1 "$INIT_SETUP" C-m
 tmux send-keys -t $SESSION:0.1 "rosbag -a " # To figure out
