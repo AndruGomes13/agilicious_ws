@@ -6,8 +6,8 @@ from typing import Any, Dict, List, Optional, Type
 class Message:
     type: str  # must be set in subclasses
 
-    def to_json(self) -> str:
-        return json.dumps(asdict(self))
+    def to_json(self) -> dict:
+        return asdict(self)
 
     @classmethod
     def from_json(cls, s: str) -> 'Message':

@@ -57,6 +57,7 @@ class MotionCaptureNode
             ROS_INFO("Motion Capture Node shutting down.");
         }
 
+<<<<<<< Updated upstream
         ros::Publisher& publisher_from_body(const std::string& body_name)
         {
             auto it = body_to_publisher_map.find(body_name);
@@ -65,6 +66,47 @@ class MotionCaptureNode
                 it = body_to_publisher_map.emplace(body_name, pub).first;
             }
             return it->second;
+=======
+        publishPointCloud(mocap_->pointCloud(), time);
+    }
+
+  private:
+    void publishBodyPose(const libmotioncapture::RigidBody &rigidBody,
+                         const ros::Time &time) {
+        auto &pub = publisher_from_body(rigidBody.name());
+        geometry_msgs::PoseStamped poseMsg;
+        poseMsg.header.stamp = time;
+        poseMsg.header.frame_id = "world";
+        poseMsg.pose.position.x = rigidBody.position().x();
+        poseMsg.pose.position.y = rigidBody.position().y();
+        poseMsg.pose.position.z = rigidBody.position().z();
+        poseMsg.pose.orientation.x = rigidBody.rotation().x();
+        poseMsg.pose.orientation.y = rigidBody.rotation().y();
+        poseMsg.pose.orientation.z = rigidBody.rotation().z();
+        poseMsg.pose.orientation.w = rigidBody.rotation().w();
+        pub.publish(poseMsg);
+    }
+
+    void publishPointCloud(const libmotioncapture::PointCloud &point_cloud,
+                           const ros::Time &time) {
+        int num_points = point_cloud.rows();
+        point_cloud_msg.poses.resize(num_points);
+        motion_capture_ros_msgs::PointCloud point_cloud_msg;
+
+        point_cloud_msg.t = time.toSec();
+
+        for (int i = 0; i < num_points; ++i) {
+
+            geometry_msgs::PoseStamped pointPoseMsg;
+            pointPoseMsg.header.stamp = time;
+            pointPoseMsg.header.frame_id = "world";
+            pointPoseMsg.pose.position.x = point_cloud(i, 0);
+            pointPoseMsg.pose.position.y = point_cloud(i, 1);
+            pointPoseMsg.pose.position.z = point_cloud(i, 2);
+            pointPoseMsg.pose.orientation.w =
+                1.0; // Assuming no rotation for points
+            point_cloud_msg.poses.push_back(pointPoseMsg);
+>>>>>>> Stashed changes
         }
 
         void tick()

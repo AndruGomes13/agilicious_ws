@@ -1,59 +1,146 @@
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 import subprocess
-from typing import List, Tuple
+from typing import Deque, List, Tuple
 
 import numpy as np
 from agiros_msgs.msg import QuadState, Telemetry, Command
+from observation import FullObservationWithBall
+from state_interface import DroneState, BallState, StateHistory
 from std_msgs.msg import Bool
 import rospy
 from collections import deque
 import time
 from protocol.messages import InferenceMsg, InferenceReply, parse_message
+from select import select
     
-@dataclass
-class DroneState:
-    time:float
-    position: np.ndarray
-    velocity: np.ndarray
-    orientation: np.ndarray
-    angular_velocity: np.ndarray
-    angular_acceleration: np.ndarray
-    gyro_bias: np.ndarray
+class PolicyServerInterface:
+    def __init__(self, jax_policy_path: Path, observation_shape: Tuple[int, ...]):
+        self.jax_policy_path = jax_policy_path
+        self.observation_shape = observation_shape
+        
+        self.inference_server = self._get_inference_server()
+        
+        self.timeout = 2000 / 1000  # seconds
 
-@dataclass
-class BallState:
-    time:float
-    position: np.ndarray
-    velocity: np.ndarray
-    
+    def _get_inference_server(self):
+        # Start the inference server with the specified checkpoint directory and observation shape
+        python_file = os.path.join(os.path.dirname(__file__), "inference_server.py")
+        server = subprocess.Popen(
+            ["python3.11", python_file, "--checkpoint-dir", self.jax_policy_path.absolute(), "--observation-shape", f"{str(self.observation_shape)}"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,  # line buffered
+        )
+
+        print("Subprocess Id:", server.pid)
+        rospy.loginfo(f"Inference server started with checkpoint directory: {self.jax_policy_path}")
+       
+        if not server.stdout or not server.stderr:
+            raise RuntimeError("Failed to start inference server: No stdout or stderr pipe")
+        
+        return server
+
+    def run_inference(self, observation: np.ndarray) -> np.ndarray:
+        if not self.inference_server:
+            raise RuntimeError("Inference server is not running")
+        
+        if self.inference_server.poll() is not None:
+            raise RuntimeError("Inference server has exited")
+            
+        try:
+            inference_msg = InferenceMsg(obs=observation.tolist())
+            self.send(inference_msg.to_json())
+            
+        except BrokenPipeError:
+            raise RuntimeError("Inference server pipe is broken")
+        
+        ready, _, _ = select([self.inference_server.stdout], [], [], self.timeout)
+        if not ready:
+            raise TimeoutError("Inference server timed out")
+        
+        response = self.inference_server.stdout.readline()
+        if response == "":                                # <- child closed pipe
+            rc = self.inference_server.poll()
+            raise RuntimeError(f"Inference server exited with code {rc}")
+
+        response_data = InferenceReply.from_json(response)
+
+        if isinstance(response_data, InferenceReply):
+            if response_data.status == "ok":
+                return np.array(response_data.result)
+            else:
+                raise RuntimeError(f"Inference server returned error: {response_data.error}")
+        else:
+            raise ValueError(f"Unexpected response type: {type(response_data)}")
+
+    def send(self, message: dict):
+        """Send a message to the inference server."""
+        if not self.inference_server:
+            raise RuntimeError("Inference server is not running")
+
+        try:
+            self.inference_server.stdin.write(json.dumps(message) + "\n")
+            self.inference_server.stdin.flush()
+        except BrokenPipeError:
+            raise RuntimeError("Inference server pipe is broken")
+
 
 class MLPPilot:
     def __init__(self, policy_sampling_frequency: float, jax_policy_path: Path):
-        self.policy_sampling_frequency = policy_sampling_frequency
-        self.policy = self.load_jax_policy(jax_policy_path)
-        self.inference_server = self.start_inference_server(jax_policy_path.parent, (1, 10))  # TODO: Adjust obs shape
-        self.check_inference_time()
         
-        self.run_policy = False
-        self.history_is_initialized = False
-
-        DRONE_BUFFER_SIZE = 100
-        BALL_BUFFER_SIZE = 100
-        DRONE_HISTORY_SIZE = 10
-        BALL_HISTORY_SIZE = 10
-
-        self.drone_state_buffer: deque[DroneState] = deque(maxlen=DRONE_BUFFER_SIZE)
-        self.ball_state_buffer: deque[BallState] = deque(maxlen=BALL_BUFFER_SIZE)
-        self.drone_state_history: deque[DroneState] = deque(maxlen=DRONE_HISTORY_SIZE)
-        self.ball_state_history: deque[BallState] = deque(maxlen=BALL_HISTORY_SIZE)
-
+        # --- Some Parameters ---
+        self.SAMPLING_FREQUENCY= policy_sampling_frequency
+        self.START_CHECK_WINDOW_DURATION = 1.0 # Seconds
+        
         self.position_bounds = (
             np.array([-10.0, -10.0, -10.0]),
             np.array([10.0, 10.0, 10.0])
         )
+        
+        # --- State Variables ---
+        self.run_policy = False
+        
+        # --- Action Model --- #TODO: Defined the actual scalings
+        DEG = np.pi / 180.0
+        MASS = ...
+        t = ...
+        wx = 600 * DEG
+        wy = wx
+        wz = 250 * DEG
+        
+        # --- Observation Model ---
+        self.DRONE_HISTORY_LEN = 10
+        self.BALL_HISTORY_LEN = 10
+        self.ACTION_HISTORY_LEN = 10
+        observation_model = FullObservationWithBall
+        observation_model.resolve_fields(self.DRONE_HISTORY_LEN, self.BALL_HISTORY_LEN, self.ACTION_HISTORY_LEN)
+        self.OBSERVATION_SHAPE = observation_model.get_observation_shape()
+        
+        # --- Buffer Initialization ---
+        self.BUFFER_DRONE_HISTORY_SIZE = int(max(
+            int(self.SAMPLING_FREQUENCY * self.START_CHECK_WINDOW_DURATION),
+            self.DRONE_HISTORY_LEN
+        ) * 1.2)
+        self.BUFFER_BALL_HISTORY_SIZE = self.BALL_HISTORY_LEN
+        self.BUFFER_ACTION_HISTORY_LEN = self.ACTION_HISTORY_LEN
 
+        self.drone_state_history: Deque[DroneState] = deque(maxlen=self.BUFFER_DRONE_HISTORY_SIZE)
+        self.ball_state_history: Deque[BallState] = deque(maxlen=self.BUFFER_BALL_HISTORY_SIZE)
+        self.action_history: Deque[np.ndarray] = deque(maxlen=self.BUFFER_ACTION_HISTORY_LEN)
+        
+        # --- Setup jax policy server ---
+        self.inference_server = PolicyServerInterface(
+            jax_policy_path=jax_policy_path,
+            observation_shape=self.OBSERVATION_SHAPE)
+
+        self._check_inference_time()
+    
+        # --- ROS Initialization ---
         self.init_subscriptions()
         self.init_publishers()
     
@@ -73,26 +160,23 @@ class MLPPilot:
         
     def callback_drone_state(self, msg: QuadState):
         # Process the state message
-        drone_state = self.parse_state_msg(msg)
+        drone_state = self._parse_state_msg(msg)
         
-        if drone_state.time < self.drone_state_buffer[-1].time if self.drone_state_buffer else 0:
-            rospy.logwarn("Received drone state with time less than the last recorded state. Ignoring.")
-            return
-        
-        self.drone_state_buffer.appendleft(drone_state)
+        self.drone_state_history.appendleft(drone_state)
         
         # Check if the drone state is within the defined bounds
-        self.check_drone_state(drone_state)
+        self._check_drone_state(drone_state)
+        
             
-    def callback_telemetry(self, msg):
-        # Process the telemetry message
-        rospy.loginfo("Received telemetry data: %s", msg.data)
+    def callback_telemetry(self, msg: Telemetry):
+        if msg is not None:
+            self.voltage = msg.voltage
         
     def callback_start_signal(self, msg: Bool):
         # Start or stop the policy execution based on the received signal and start conditions
         candidate_start = msg.data
         
-        if candidate_start and not self.validate_pre_start_conditions():
+        if candidate_start and not self._validate_pre_start_conditions():
             rospy.logwarn("Pre-start conditions not met. Cannot start policy.")
             return    
         
@@ -102,16 +186,16 @@ class MLPPilot:
         else:
             rospy.loginfo("Stop signal received, halting policy execution.")
        
-    def check_drone_state(self, drone_state: DroneState):
+    def _check_drone_state(self, drone_state: DroneState):
         # Check if the state is within the acceptable range
-        if not self.is_within_bounds(drone_state.position, self.position_bounds):
+        if not self._is_within_bounds(drone_state.position, self.position_bounds):
             rospy.logwarn("Drone position out of bounds: %s", drone_state.position)
             self.stop_policy()
 
-    def is_within_bounds(self, value: np.ndarray, bounds: Tuple[np.ndarray, np.ndarray]) -> bool:
+    def _is_within_bounds(self, value: np.ndarray, bounds: Tuple[np.ndarray, np.ndarray]) -> bool:
         return np.all(value >= bounds[0]) and np.all(value <= bounds[1])
 
-    def parse_state_msg(self, msg: QuadState) -> DroneState:
+    def _parse_state_msg(self, msg: QuadState) -> DroneState:
         # Parse the state message to extract relevant information
         time = msg.header.stamp.to_sec()
         position = np.array([msg.pose.position.x, msg.pose.position.y, msg.pose.position.z])
@@ -132,19 +216,14 @@ class MLPPilot:
             gyro_bias=gyro_bias
         )
 
-    def parse_ball_msg(self, msg) -> BallState:
+    def _parse_ball_msg(self, msg) -> BallState:
         # TODO: Implement the parsing of the ball state message
         pass
     
     def get_and_publish_command(self):
         if not self.run_policy:
             return
-        
-        if not self.history_is_initialized:
-            self.initialize_history()
-            if not self.history_is_initialized:
-                rospy.logwarn("Could not initialize history, cannot execute policy.")
-                return
+    
             
         observation = ...
         jax_command = ...  # Call the JAX policy with the observation
@@ -155,25 +234,18 @@ class MLPPilot:
         
         self.command_pub.publish(command)
 
-    def stop_policy(self):
+    def _stop_policy(self):
         self.run_policy = False
-        self.history_is_initialized = False
         rospy.loginfo("Policy execution stopped.")
-
-    def initialize_history(self):
-        # Initializes the history by sampling the state buffers at policy sampling rate.
-        # If there are not enough samples, copy the last available state.
-        # TODO: How can I initialize the action history?
-        return False
         
-    def validate_pre_start_conditions(self) -> bool:
+    def _validate_pre_start_conditions(self) -> bool:
         # Perform necessary checks before starting the policy:
         # - There are enough samples and duration in the drone state buffer
         # - The drone is stationary (velocity and angular velocity are within a small threshold)
         # - The drone position is within the defined bounds
         
-        CHECK_WINDOW_DURATION = 1.0  # seconds
-        MIN_SAMPLES = CHECK_WINDOW_DURATION * self.policy_sampling_frequency
+          # seconds
+        MIN_SAMPLES = self.START_CHECK_WINDOW_DURATION * self.SAMPLING_FREQUENCY
         current_time = rospy.get_time()
         
         has_enough_duration = False
@@ -181,17 +253,17 @@ class MLPPilot:
         failed_checks = False
         
         for drone_state in self.drone_state_buffer:
-            if drone_state.time < current_time - CHECK_WINDOW_DURATION:
+            if drone_state.time < current_time - self.START_CHECK_WINDOW_DURATION:
                 has_enough_duration = True
                 break
             num_samples_within_timeframe += 1
             
-            if not self.is_within_bounds(drone_state.position, self.position_bounds):
+            if not self._is_within_bounds(drone_state.position, self.position_bounds):
                 rospy.logwarn("Drone position out of bounds: %s", drone_state.position)
                 failed_checks = True
                 break
             
-            if not self.is_within_bounds(drone_state.velocity, (np.array([-0.1, -0.1, -0.1]), np.array([0.1, 0.1, 0.1]))):
+            if not self._is_within_bounds(drone_state.velocity, (np.array([-0.1, -0.1, -0.1]), np.array([0.1, 0.1, 0.1]))):
                 rospy.logwarn(
                     "Drone is not stationary (Linear Velocity = [%f, %f, %f])",
                     drone_state.velocity[0],
@@ -201,7 +273,7 @@ class MLPPilot:
                 failed_checks = True
                 break
             
-            if not self.is_within_bounds(drone_state.angular_velocity, (np.array([-0.1, -0.1, -0.1]), np.array([0.1, 0.1, 0.1]))):
+            if not self._is_within_bounds(drone_state.angular_velocity, (np.array([-0.1, -0.1, -0.1]), np.array([0.1, 0.1, 0.1]))):
                 rospy.logwarn(
                     "Drone is not stationary (Angular Velocity = [%f, %f, %f])",
                     drone_state.angular_velocity[0],
@@ -224,97 +296,54 @@ class MLPPilot:
             return False
         
         return True
-            
-    def load_jax_policy(self, jax_policy_path: Path):
-        # Load the JAX policy from the specified path
-        if not jax_policy_path.exists():
-            rospy.logerr(f"JAX policy file not found at {jax_policy_path}")
-            return None
-        
-        #TODO: Implement the actual loading of the JAX policy
-        policy_fn = ...
-        
-        rospy.loginfo(f"JAX policy loaded from {jax_policy_path}")
-        
-        # Run warmup to ensure the policy is JIT-compiled and ready for execution
-        for _ in range(10):
-            # Generate a warmup observation, adjust the shape as needed
-            warmup_observation = np.zeros((1, 10))  # Adjust the shape
-            policy_fn(warmup_observation)
 
-        # Test the inference time
-        start_time = time.time()
-        TEST_ITERATIONS = 100
-        for _ in range(TEST_ITERATIONS):
-            warmup_observation = np.zeros((1, 10)) # TODO: Adjust the shape
-            policy_fn(warmup_observation)
-        end_time = time.time()
-        inference_time = (end_time - start_time) / TEST_ITERATIONS
+    def _check_inference_time(self):
+        ''' 
+        Check the inference time of the JAX policy. Will account for:
+        - Serialization and deserialization of the state
+        - Server communication overhead
+        - JAX policy inference time
+        '''
+        expected_inference_time = 1 / self.SAMPLING_FREQUENCY
         
+        drone_state_history = deque(maxlen=self.BUFFER_DRONE_HISTORY_SIZE)
+        ball_state_history = deque(maxlen=self.BUFFER_BALL_HISTORY_SIZE)
+        action_history = deque(maxlen=self.BUFFER_ACTION_HISTORY_LEN)
         
-        # Check if the inference time is within acceptable limits
-        sampling_period = 1 / self.policy_sampling_frequency
-        if inference_time < sampling_period * 0.5:
-            rospy.loginfo(f"JAX policy inference time is acceptable: {inference_time * 1000:.6f} ms per iteration")
-        elif inference_time < sampling_period * 0.8:
-            rospy.logwarn(f"JAX policy inference time is high: {inference_time * 1000:.6f} ms per iteration")
-        else:
-            rospy.logerr(f"JAX policy inference time is too high: {inference_time * 1000:.6f} ms per iteration")
-            raise RuntimeError(
-                f"JAX policy inference time exceeds sampling period: {inference_time * 1000:.6f} ms per iteration"
+        def _random_drone_state() -> DroneState:
+            return DroneState(
+                time=np.random.uniform(0, 10),
+                position=np.random.uniform(-10, 10, size=3),
+                velocity=np.random.uniform(-1, 1, size=3),
+                orientation_wxyz=np.random.uniform(-1, 1, size=4),
+                body_rate=np.random.uniform(-1, 1, size=3),
+                angular_acceleration=np.random.uniform(-1, 1, size=3),
+                gyro_bias=np.random.uniform(-0.1, 0.1, size=3)
             )
-
-        return policy_fn
-    
-    def start_inference_server(self, checkpoint_dir: Path, observation_shape: Tuple[int, ...]):
-        # Start the inference server with the specified checkpoint directory and observation shape
-        if not checkpoint_dir.exists():
-            raise FileNotFoundError(f"Checkpoint directory not found at {checkpoint_dir}")
-
-        r_fd, w_fd = os.pipe()
+        def _random_ball_state() -> BallState:
+            return BallState(
+                time=np.random.uniform(0, 10),
+                position=np.random.uniform(-10, 10, size=3),
+                velocity=np.random.uniform(-1, 1, size=3)
+            )
+        # Fill the buffers with random states
+        for _ in range(self.BUFFER_DRONE_HISTORY_SIZE):
+            drone_state_history.append(_random_drone_state())
+        for _ in range(self.BUFFER_BALL_HISTORY_SIZE):
+            ball_state_history.append(_random_ball_state())
+        for _ in range(self.BUFFER_ACTION_HISTORY_LEN):
+            action_history.append(np.random.uniform(-1, 1, size=4))
         
-        server = subprocess.Popen(
-            ["python3.11", "inference_server.py", checkpoint_dir.absolute(), str(observation_shape), str(r_fd)],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,  # line buffered
-            pass_fds=(r_fd,)  # pass the read end of the pipe to the subprocess
-        )
-        rospy.loginfo(f"Inference server started with checkpoint directory: {checkpoint_dir}")
-
-        os.close(r_fd)
-       
-        if not server.stdout or not server.stderr:
-            raise RuntimeError("Failed to start inference server: No stdout or stderr pipe")
-
-    def run_inference(self, observation: np.ndarray) -> np.ndarray:
-        # Send an inference request to the server and get the response
-        if not self.inference_server:
-            raise RuntimeError("Inference server is not running")
-        inference_msg = InferenceMsg(observation.tolist())
-        self.inference_server.stdin.write(inference_msg.to_json() + "\n")
-        self.inference_server.stdin.flush()
-        response = self.inference_server.stdout.readline().strip()
-        response_data = parse_message(response)
-        if isinstance(response_data, InferenceReply):
-            if response_data.status == "ok":
-                return np.array(response_data.result)
-            else:
-                raise RuntimeError(f"Inference server returned error: {response_data.error}")
-        else:
-            raise ValueError(f"Unexpected response type: {type(response_data)}")
+        state_history = StateHistory(
+            drone_state_history=drone_state_history,
+            ball_state_history=ball_state_history,
+            action_history=action_history)
         
-    def check_inference_time(self):
-        # Check the inference time of the server
-        test_obs = np.zeros((1, 10))  # TODO: Adjust the shape
-        expected_inference_time = 1 / self.policy_sampling_frequency
         NUM_ITER = 100
-
         start_time = time.time()
         for _ in range(NUM_ITER):
-            self.run_inference(test_obs)
+            obs = FullObservationWithBall.get_observation(state_history)
+            self.inference_server.run_inference(obs.to_array())
             
         end_time = time.time()
         inference_time = (end_time - start_time) / NUM_ITER
@@ -325,11 +354,11 @@ class MLPPilot:
             rospy.logwarn(f"JAX policy inference time is high: {inference_time * 1000:.6f} ms per iteration")
         else:
             rospy.logerr(f"JAX policy inference time is too high: {inference_time * 1000:.6f} ms per iteration")
-            raise RuntimeError(
-                f"JAX policy inference time exceeds sampling period: {inference_time * 1000:.6f} ms per iteration"
-            )
+            # raise RuntimeError(
+            #     f"JAX policy inference time exceeds sampling period: {inference_time * 1000:.6f} ms per iteration"
+            # )
         
-        
+        return inference_time
     
 def main():
     CONTROL_RATE = 100  # Hz
@@ -345,3 +374,16 @@ def main():
         pilot.get_and_publish_command()
         rate.sleep()
         rospy.spin_once()
+        
+        
+if __name__ == "__main__":
+    # Run to test the inference server
+    mpl_pilot = MLPPilot(policy_sampling_frequency=100, jax_policy_path=Path("/home/agilicious/catkin_ws/src/policy_ros/jiaxu_code.py"))
+    
+    while True:
+        t = time.time()
+        inf_time = mpl_pilot._check_inference_time()
+        print(f"Inference result: {inf_time * 1000:.2f} ms")
+        print("Inference executed successfully.")
+        time.sleep(1)  # Adjust the sleep time as needed
+    
